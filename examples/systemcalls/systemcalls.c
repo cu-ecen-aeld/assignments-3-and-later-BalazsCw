@@ -17,7 +17,12 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
-    return true;
+	int ret = system(cmd);
+
+	if( ret == -1 )
+		return false;
+	else
+		return true;
 }
 
 /**
@@ -36,18 +41,17 @@ bool do_system(const char *cmd)
 
 bool do_exec(int count, ...)
 {
-    va_list args;
-    va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
-    {
-        command[i] = va_arg(args, char *);
-    }
-    command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+	va_list args;
+	va_start(args, count);
+	char * command[count+1];
+	int i;
+	for(i=0; i<count; i++)
+	{
+		command[i] = va_arg(args, char *);
+	}
+	command[count] = NULL;
+
+	va_end(args);
 
 /*
  * TODO:
@@ -59,9 +63,38 @@ bool do_exec(int count, ...)
  *
 */
 
-    va_end(args);
+	pid_t pid;
+	int status;
 
-    return true;
+	pid = fork();
+	if(pid == -1)
+	{
+		perror("fork");
+		return -1;
+	}
+	else if( pid == 0)
+	{
+		if( execv(command[0], &command[1]) == -1)
+			exit(EXIT_FAILURE);
+
+	} else {
+
+		if(waitpid(pid, &status, 0) == -1)
+		{
+			printf("waitpid failed\n");
+			return false;
+		}
+		else 
+		{
+			if( WEXITSTATUS(status) )
+				return false;
+			else
+				return true;
+		}
+
+	}
+
+	return true;
 }
 
 /**
@@ -71,19 +104,18 @@ bool do_exec(int count, ...)
 */
 bool do_exec_redirect(const char *outputfile, int count, ...)
 {
-    va_list args;
-    va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
-    {
-        command[i] = va_arg(args, char *);
-    }
-    command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+	va_list args;
+	va_start(args, count);
+	char * command[count+1];
+	int i;
 
+	for(i=0; i<count; i++)
+	{
+		command[i] = va_arg(args, char *);
+	}
+	command[count] = NULL;
+
+	va_end(args);
 
 /*
  * TODO
@@ -93,7 +125,71 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
-    va_end(args);
+	pid_t pid;
+	int status;
 
-    return true;
+	pid = fork();
+	if(pid == -1)
+	{
+		perror("fork");
+		return -1;
+	} 
+	else if (pid == 0)
+	{
+
+		// Open output file
+		int fd = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		if (fd < 0) {
+			perror("open failed");
+			exit(EXIT_FAILURE);
+		}
+
+		// Redirect stdout to the file
+		if (dup2(fd, STDOUT_FILENO) < 0) {
+			perror("dup2 failed");
+			exit(EXIT_FAILURE);
+		}
+		
+		close(fd);
+
+		if( execv(command[0], &command[1]) == -1 )
+			exit(EXIT_FAILURE);
+	}
+	else
+	{
+		if(waitpid(pid, &status, 0) == -1)
+		{
+			return false;
+		}
+		else
+		{
+			if( WEXITSTATUS(status) )
+				return false;
+			else
+				return true;
+		}
+
+	}
+    
+	return false;
 }
+
+/*
+int main(void)
+{
+	printf("Not absolute path\n");
+	int ret = do_exec(3, "usr/bin/echo", "echo","hello");
+	printf("Return value %d\n\n", ret);
+
+	printf("Arg not absolute path\n");
+	ret = do_exec(3, "/usr/bin/test", "-f","echo");
+	printf("Return value %d\n\n", ret);
+
+	printf("Valid command\n");
+	ret = do_exec(3, "/usr/bin/ls", "ls",  "-a");
+	printf("Return %d\n", ret );
+
+	return ret;
+}
+*/
+
