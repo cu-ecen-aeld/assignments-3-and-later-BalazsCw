@@ -74,23 +74,26 @@ bool do_exec(int count, ...)
 	}
 	else if( pid == 0)
 	{
-		if( execv(command[0], &command[1]) == -1)
+		if( execv(command[0], command) == -1)
 			exit(EXIT_FAILURE);
 
 	} else {
 
 		if(waitpid(pid, &status, 0) == -1)
+			return false;
+		
+		
+		if(WIFEXITED(status))
 		{
-			printf("waitpid failed\n");
+			int code = WEXITSTATUS(status);
+			return code==0;
+		}
+		else
+		{
+
 			return false;
 		}
-		else 
-		{
-			if( WEXITSTATUS(status) )
-				return false;
-			else
-				return true;
-		}
+		
 
 	}
 
@@ -152,22 +155,24 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 		
 		close(fd);
 
-		if( execv(command[0], &command[1]) == -1 )
+		if( execv(command[0], command) == -1 )
 			exit(EXIT_FAILURE);
 	}
 	else
 	{
 		if(waitpid(pid, &status, 0) == -1)
-		{
 			return false;
+		
+		if(WIFEXITED(status))
+		{
+			int code = WEXITSTATUS(status);
+			return code==0;
 		}
 		else
 		{
-			if( WEXITSTATUS(status) )
-				return false;
-			else
-				return true;
+			return false;
 		}
+
 
 	}
     
@@ -181,12 +186,12 @@ int main(void)
 	int ret = do_exec(3, "usr/bin/echo", "echo","hello");
 	printf("Return value %d\n\n", ret);
 
-	printf("Arg not absolute path\n");
-	ret = do_exec(3, "/usr/bin/test", "-f","echo");
+	printf("Arg no absolute path, no command\n");
+	ret = do_exec(3, "/usr/bin/test", "-f", "echo");
 	printf("Return value %d\n\n", ret);
 
 	printf("Valid command\n");
-	ret = do_exec(3, "/usr/bin/ls", "ls",  "-a");
+	ret = do_exec(2, "/usr/bin/ls", "-a");
 	printf("Return %d\n", ret );
 
 	return ret;
